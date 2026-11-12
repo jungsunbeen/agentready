@@ -18,6 +18,7 @@ CLI and library that checks whether a repository is ready for AI coding agents. 
 - `src/context.ts` — `RepoContext`. All filesystem reads go through it; rules must not import `node:fs`.
 - `src/check.ts` — runs rules and computes the score. `src/report.ts` — text, JSON and Markdown output.
 - `src/run.ts` — CLI parsing and commands, with injected I/O. `src/cli.ts` is only the entry point.
+- `src/agents.ts` — files that `init --agent` installs for Claude Code, Codex and Copilot CLI. Never overwrite existing files.
 - `test/` — Vitest. Build fixture repos with `makeRepo()` from `test/helpers.ts`; they are deleted after each test.
 
 ## Conventions

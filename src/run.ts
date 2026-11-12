@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { absolutePath, AGENT_NAMES, AGENTS, isAgent, planAgents, SKILL_NAME, type PlannedFile } from './agents.js';
 import { check } from './check.js';
 import { RepoContext } from './context.js';
 import { renderAgentsMd } from './init.js';
@@ -24,12 +25,15 @@ const HELP = `Usage: agentready [command] [dir] [options]
 Commands:
   check [dir]   Check a repository (default)
   rules         List all rules
-  init [dir]    Create AGENTS.md from package.json scripts
+  init [dir]    Create AGENTS.md from package.json scripts,
+                and optionally connect AI coding tools
 
 Options:
   --json             Machine-readable output (check, rules)
   --fail-under <n>   Also exit 1 if the score is below n (check)
+  --exit-zero        Always exit 0, for hooks and skills that only read the result (check)
   --markdown         Rules as Markdown (rules)
+  --agent <name>     Install the ${SKILL_NAME} skill for ${AGENTS.join(', ')} (init, repeatable)
   --force            Overwrite an existing AGENTS.md (init)
   --dry-run          Print AGENTS.md instead of writing it (init)
   -h, --help         Show this help
@@ -41,7 +45,9 @@ Exit codes: 0 ok, 1 check failed, 2 usage error
 const OPTIONS = {
   json: { type: 'boolean' },
   'fail-under': { type: 'string' },
+  'exit-zero': { type: 'boolean' },
   markdown: { type: 'boolean' },
+  agent: { type: 'string', multiple: true },
   force: { type: 'boolean' },
   'dry-run': { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
@@ -115,6 +121,7 @@ async function runCheck(dir: string, values: Values, io: Io): Promise<number> {
   const failUnder = parseFailUnder(values['fail-under']);
   const report = await check(dir);
   io.stdout(values.json === true ? formatJson(report) : formatText(report, { color: io.color }));
+  if (values['exit-zero'] === true) return EXIT.ok;
 
   if (!report.passed) return EXIT.failed;
   if (failUnder !== undefined && report.score < failUnder) {
@@ -125,18 +132,48 @@ async function runCheck(dir: string, values: Values, io: Io): Promise<number> {
 }
 
 async function runInit(dir: string, values: Values, io: Io): Promise<number> {
+  const requested = values.agent ?? [];
+  const unknown = requested.filter((name) => !isAgent(name));
+  if (unknown.length > 0) throw new UsageError(`Unknown agent: ${unknown.join(', ')}. Choose from ${AGENTS.join(', ')}.`);
+  const agents = requested.filter(isAgent);
+  if (values['dry-run'] === true && agents.length > 0) throw new UsageError('--dry-run cannot be combined with --agent');
+
   const ctx = new RepoContext(dir);
-  const content = await renderAgentsMd(ctx);
+  const agentsMd = await renderAgentsMd(ctx);
   if (values['dry-run'] === true) {
-    io.stdout(content);
+    io.stdout(agentsMd);
     return EXIT.ok;
   }
-  if (values.force !== true && (await ctx.exists('AGENTS.md'))) {
+
+  const agentsMdExists = await ctx.exists('AGENTS.md');
+  if (agentsMdExists && values.force !== true && agents.length === 0) {
     io.stderr('AGENTS.md already exists. Use --force to overwrite it, or --dry-run to preview.\n');
     return EXIT.failed;
   }
-  const target = path.join(ctx.root, 'AGENTS.md');
-  await writeFile(target, content);
-  io.stdout(`Wrote ${path.relative(io.cwd, target) || 'AGENTS.md'}. Fill in the TODO comments.\n`);
+
+  const create: PlannedFile[] = [];
+  const keep: string[] = [];
+  if (!agentsMdExists || values.force === true) create.push({ path: 'AGENTS.md', content: agentsMd });
+  else keep.push('AGENTS.md');
+  const plan = await planAgents(ctx, agents);
+  create.push(...plan.create);
+  keep.push(...plan.keep);
+
+  for (const file of create) {
+    const target = absolutePath(ctx.root, file);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, file.content);
+  }
+
+  const lines = [
+    ...create.map((file) => `Created ${file.path}`),
+    ...keep.map((file) => `Kept    ${file} (already exists)`),
+  ];
+  if (create.some((file) => file.path === 'AGENTS.md')) lines.push('', 'Fill in the TODO comments in AGENTS.md.');
+  if (agents.length > 0) {
+    const tools = agents.map((agent) => AGENT_NAMES[agent]).join(', ');
+    lines.push(`Connected ${tools}. Ask the agent to "fix agentready findings", or call the ${SKILL_NAME} skill directly.`);
+  }
+  io.stdout(`${lines.join('\n')}\n`);
   return EXIT.ok;
 }

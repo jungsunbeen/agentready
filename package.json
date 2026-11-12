@@ -10,6 +10,7 @@
     "lint",
     "developer-experience"
   ],
+  "license": "MIT",
   "type": "module",
   "bin": {
     "agentready": "./dist/cli.js"
@@ -41,5 +42,9 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.2",
     "vitest": "^5.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jungsunbeen/agentready.git"
   }
 }

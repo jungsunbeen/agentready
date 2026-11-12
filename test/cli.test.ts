@@ -27,8 +27,12 @@ describe('agentready check', () => {
     expect(result.stdout).toContain('Score 100/100');
   });
 
-  it('exits 1 when an error rule fails', async () => {
-    expect((await cli(['check'], await makeRepo())).code).toBe(1);
+  it('exits 1 when an error rule fails, unless --exit-zero is set', async () => {
+    const root = await makeRepo();
+    expect((await cli(['check'], root)).code).toBe(1);
+    const { code, stdout } = await cli(['check', '--json', '--exit-zero'], root);
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({ passed: false });
   });
 
   it('accepts a directory argument and prints JSON', async () => {
