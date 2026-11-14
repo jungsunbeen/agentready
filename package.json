@@ -1,5 +1,5 @@
 {
-  "name": "agentready",
+  "name": "agent-lint",
   "version": "0.1.0",
   "description": "Check whether a repository is ready for AI coding agents.",
   "keywords": [
@@ -13,7 +13,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "agentready": "./dist/cli.js"
+    "agent-lint": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -45,6 +45,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jungsunbeen/agentready.git"
+    "url": "git+https://github.com/jungsunbeen/agent-lint.git"
   }
 }

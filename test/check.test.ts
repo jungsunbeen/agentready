@@ -87,7 +87,7 @@ describe('formatText', () => {
   it('shows each finding, a fix for failures, and the score', async () => {
     const text = formatText(await check(await makeRepo()), { color: false });
     expect(text).toContain('✖ agent-instructions');
-    expect(text).toContain('→ Run `agentready init`');
+    expect(text).toContain('→ Run `agent-lint init`');
     expect(text).toMatch(/Score \d+\/100/);
     expect(text).not.toContain('\u001b[');
   });

@@ -14,14 +14,14 @@ export function isAgent(name: string): name is Agent {
   return (AGENTS as readonly string[]).includes(name);
 }
 
-export const SKILL_NAME = 'agentready-fix';
+export const SKILL_NAME = 'agent-lint-fix';
 
 // --exit-zero: a failing check is the expected input here, not an error.
-const CHECK_COMMAND = 'agentready check --json --exit-zero';
+const CHECK_COMMAND = 'agent-lint check --json --exit-zero';
 
 const SKILL_DESCRIPTION =
   'Check whether this repository is ready for AI coding agents and fix what fails. ' +
-  'Use when the user asks to run agentready or to make the repository easier for agents to work in.';
+  'Use when the user asks to run agent-lint or to make the repository easier for agents to work in.';
 
 const SKILL_STEPS = `For each finding with "status": "fail", error severity first:
 
@@ -29,13 +29,13 @@ const SKILL_STEPS = `For each finding with "status": "fail", error severity firs
 2. If the fix needs a decision only the user can make (which lockfile to keep, which Node.js version to require), ask instead of guessing.
 3. For "agent-commands", update the instructions file to match package.json, unless the missing script was clearly meant to exist.
 
-Then run \`agentready check\` again and repeat until "passed" is true.
+Then run \`agent-lint check\` again and repeat until "passed" is true.
 Finish by reporting the score before and after, and any finding you left for the user.`;
 
 // Claude Code runs `!` commands before the model reads the skill, so the result arrives preloaded.
 const CLAUDE_SKILL = `---
 description: ${SKILL_DESCRIPTION}
-allowed-tools: Bash(${CHECK_COMMAND}) Bash(agentready check)
+allowed-tools: Bash(${CHECK_COMMAND}) Bash(agent-lint check)
 ---
 
 Current result of \`${CHECK_COMMAND}\`:

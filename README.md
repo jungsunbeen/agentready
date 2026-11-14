@@ -1,15 +1,15 @@
-# agentready
+# agent-lint
 
-[![CI](https://github.com/jungsunbeen/agentready/actions/workflows/ci.yml/badge.svg)](https://github.com/jungsunbeen/agentready/actions/workflows/ci.yml)
+[![CI](https://github.com/jungsunbeen/agent-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/jungsunbeen/agent-lint/actions/workflows/ci.yml)
 
 **리포지토리가 AI 코딩 에이전트에게 일하기 좋은 상태인지 검사하고, 고칠 방법까지 알려주는 CLI.**
 
-에이전트는 매 세션을 프로젝트 기억 없이 시작합니다. 그래서 사람에겐 사소한 빈틈이 에이전트에겐 그대로 실패가 됩니다. agentready는 그런 빈틈을 규칙으로 만들어 CI가 잡게 하고, 고치는 일은 AI에게 맡깁니다.
+에이전트는 매 세션을 프로젝트 기억 없이 시작합니다. 그래서 사람에겐 사소한 빈틈이 에이전트에겐 그대로 실패가 됩니다. agent-lint는 그런 빈틈을 규칙으로 만들어 CI가 잡게 하고, 고치는 일은 AI에게 맡깁니다.
 
 ```console
-$ agentready
+$ agent-lint
 ✖ agent-instructions  No agent instructions file found.
-                      → Run `agentready init` to generate AGENTS.md from your package.json scripts.
+                      → Run `agent-lint init` to generate AGENTS.md from your package.json scripts.
 - agent-commands      No agent instructions file to check.
 ✔ readme              README.md has a usage section.
 ✖ package-scripts     package.json scripts: missing lint; "test" is the npm placeholder.
@@ -32,17 +32,17 @@ Score 46/100 · 4 passed, 3 failed, 1 skipped
 
 ```bash
 # 1. 설치 — 아직 npm에 배포하지 않아 저장소에서 빌드합니다
-git clone https://github.com/jungsunbeen/agentready.git
-cd agentready && npm ci && npm run build && npm link
+git clone https://github.com/jungsunbeen/agent-lint.git
+cd agent-lint && npm ci && npm run build && npm link
 
 # 2. 검사할 프로젝트에서
 cd ~/my-project
-agentready                        # 검사
-agentready init                   # package.json 스크립트로 AGENTS.md 초안 생성
-agentready init --agent claude    # Claude Code에 수정 스킬 연결
+agent-lint                        # 검사
+agent-lint init                   # package.json 스크립트로 AGENTS.md 초안 생성
+agent-lint init --agent claude    # Claude Code에 수정 스킬 연결
 ```
 
-npm의 `agentready`는 이 프로젝트와 무관한 다른 패키지입니다. `npx agentready`로는 실행하지 마세요. `npm link`를 되돌리려면 `npm uninstall -g agentready`를 실행합니다.
+`npm link`를 되돌리려면 `npm uninstall -g agent-lint`를 실행합니다.
 
 ## 검사 대상
 
@@ -72,15 +72,15 @@ Report         가중치 점수 · fix · 종료 코드
 
 ## AI 도구 연결
 
-**agentready 저장소가 아니라 검사할 프로젝트 폴더**에서 실행합니다. `--agent`를 반복하면 여러 도구를 함께 연결할 수 있습니다.
+**agent-lint 저장소가 아니라 검사할 프로젝트 폴더**에서 실행합니다. `--agent`를 반복하면 여러 도구를 함께 연결할 수 있습니다.
 
 | 도구 | 연결 | 스킬 호출 | 설치되는 파일 |
 |---|---|---|---|
-| Claude Code | `agentready init --agent claude` | `/agentready-fix` | `.claude/skills/agentready-fix/SKILL.md`, `CLAUDE.md` |
-| Codex | `agentready init --agent codex` | `$agentready-fix` | `.agents/skills/agentready-fix/SKILL.md` |
-| Copilot CLI | `agentready init --agent copilot` | `/agentready-fix` | `.agents/skills/agentready-fix/SKILL.md` |
+| Claude Code | `agent-lint init --agent claude` | `/agent-lint-fix` | `.claude/skills/agent-lint-fix/SKILL.md`, `CLAUDE.md` |
+| Codex | `agent-lint init --agent codex` | `$agent-lint-fix` | `.agents/skills/agent-lint-fix/SKILL.md` |
+| Copilot CLI | `agent-lint init --agent copilot` | `/agent-lint-fix` | `.agents/skills/agent-lint-fix/SKILL.md` |
 
-- Claude Code 스킬은 `agentready check --json --exit-zero` 결과를 미리 담고 시작해서, AI가 명령을 한 번 덜 실행합니다.
+- Claude Code 스킬은 `agent-lint check --json --exit-zero` 결과를 미리 담고 시작해서, AI가 명령을 한 번 덜 실행합니다.
 - Codex와 Copilot CLI는 같은 `.agents/skills` 위치를 읽으므로 스킬 파일 하나를 공유합니다.
 - Claude Code는 `AGENTS.md` 대신 `CLAUDE.md`를 읽습니다. `CLAUDE.md`가 없으면 `@AGENTS.md` 한 줄로 만들어 같은 지침을 보게 합니다.
 
@@ -88,10 +88,10 @@ Report         가중치 점수 · fix · 종료 코드
 
 ## 기본 작업 흐름
 
-1. **검사** — 프로젝트 폴더에서 `agentready`를 실행합니다. 실패한 규칙마다 `→` 뒤에 할 일이 나옵니다.
-2. **지침 파일 만들기** — `agentready init`이 `package.json` 스크립트와 락파일을 읽어 `AGENTS.md` 초안을 만듭니다. pnpm 락파일이 있으면 `pnpm run test`처럼 그 패키지 매니저의 명령으로 적어 `agent-commands` 규칙을 통과합니다. `<!-- TODO -->`로 남은 프로젝트 설명은 직접 채웁니다.
-3. **AI에게 고치게 하기** — 연결한 도구에서 `/agentready-fix`(Codex는 `$agentready-fix`)를 호출합니다. AI가 `error` 규칙부터 `fix`를 따라 고치고, 통과할 때까지 다시 검사합니다. 어떤 Node 버전을 요구할지처럼 판단이 필요한 항목은 추측하지 않고 개발자에게 묻습니다.
-4. **CI로 유지하기** — 지침은 시간이 지나면 코드와 어긋납니다. CI에서 `agentready --fail-under 90`으로 실행하면 스크립트 이름만 바꾸고 지침을 고치지 않은 PR이 바로 실패합니다. 이 저장소도 CI에서 자기 자신을 100점 기준으로 검사합니다.
+1. **검사** — 프로젝트 폴더에서 `agent-lint`를 실행합니다. 실패한 규칙마다 `→` 뒤에 할 일이 나옵니다.
+2. **지침 파일 만들기** — `agent-lint init`이 `package.json` 스크립트와 락파일을 읽어 `AGENTS.md` 초안을 만듭니다. pnpm 락파일이 있으면 `pnpm run test`처럼 그 패키지 매니저의 명령으로 적어 `agent-commands` 규칙을 통과합니다. `<!-- TODO -->`로 남은 프로젝트 설명은 직접 채웁니다.
+3. **AI에게 고치게 하기** — 연결한 도구에서 `/agent-lint-fix`(Codex는 `$agent-lint-fix`)를 호출합니다. AI가 `error` 규칙부터 `fix`를 따라 고치고, 통과할 때까지 다시 검사합니다. 어떤 Node 버전을 요구할지처럼 판단이 필요한 항목은 추측하지 않고 개발자에게 묻습니다.
+4. **CI로 유지하기** — 지침은 시간이 지나면 코드와 어긋납니다. CI에서 `agent-lint --fail-under 90`으로 실행하면 스크립트 이름만 바꾸고 지침을 고치지 않은 PR이 바로 실패합니다. 이 저장소도 CI에서 자기 자신을 100점 기준으로 검사합니다.
 
 ## 규칙
 
@@ -112,32 +112,32 @@ Report         가중치 점수 · fix · 종료 코드
 ### 규칙 끄기
 
 ```bash
-agentready check --ignore typescript-strict
-agentready check --ignore typescript-strict --ignore ci-workflow
+agent-lint check --ignore typescript-strict
+agent-lint check --ignore typescript-strict --ignore ci-workflow
 ```
 
-`--ignore`한 규칙은 실행하지 않고 `skip`으로 표시해 점수 분모에서 뺍니다. 라이브러리에서는 `check(root, { ignore: ['typescript-strict'] })`로 넘깁니다. 없는 규칙 ID를 넘기면 `agentready rules`로 확인하라는 사용법 오류(종료 코드 `2`)가 납니다.
+`--ignore`한 규칙은 실행하지 않고 `skip`으로 표시해 점수 분모에서 뺍니다. 라이브러리에서는 `check(root, { ignore: ['typescript-strict'] })`로 넘깁니다. 없는 규칙 ID를 넘기면 `agent-lint rules`로 확인하라는 사용법 오류(종료 코드 `2`)가 납니다.
 
 ## 명령어
 
 | 명령어 | 하는 일 |
 |---|---|
-| `agentready [dir]` | `agentready check`와 같습니다 |
-| `agentready init [dir]` | `AGENTS.md` 초안을 만듭니다 |
-| `agentready init --agent <이름>` | AI 도구 연결 파일을 설치합니다 |
+| `agent-lint [dir]` | `agent-lint check`와 같습니다 |
+| `agent-lint init [dir]` | `AGENTS.md` 초안을 만듭니다 |
+| `agent-lint init --agent <이름>` | AI 도구 연결 파일을 설치합니다 |
 
 <details>
 <summary>전체 명령어와 옵션 보기</summary>
 
 | 명령어 | 하는 일 |
 |---|---|
-| `agentready check [dir]` | 저장소를 검사하고 결과와 점수를 출력합니다 |
-| `agentready check --json` | 결과를 JSON으로 출력합니다. 스킬과 스크립트가 사용합니다 |
-| `agentready rules` | 규칙 목록을 출력합니다. `--json`, `--markdown`도 지원합니다 |
-| `agentready init --dry-run` | 파일을 쓰지 않고 `AGENTS.md` 내용만 출력합니다 |
-| `agentready init --force` | 이미 있는 `AGENTS.md`를 덮어씁니다 |
-| `agentready --help` | 사용법을 출력합니다 |
-| `agentready --version` | 현재 버전을 출력합니다 |
+| `agent-lint check [dir]` | 저장소를 검사하고 결과와 점수를 출력합니다 |
+| `agent-lint check --json` | 결과를 JSON으로 출력합니다. 스킬과 스크립트가 사용합니다 |
+| `agent-lint rules` | 규칙 목록을 출력합니다. `--json`, `--markdown`도 지원합니다 |
+| `agent-lint init --dry-run` | 파일을 쓰지 않고 `AGENTS.md` 내용만 출력합니다 |
+| `agent-lint init --force` | 이미 있는 `AGENTS.md`를 덮어씁니다 |
+| `agent-lint --help` | 사용법을 출력합니다 |
+| `agent-lint --version` | 현재 버전을 출력합니다 |
 
 | 옵션 | 쓰는 명령 | 내용 |
 |---|---|---|
@@ -150,7 +150,7 @@ agentready check --ignore typescript-strict --ignore ci-workflow
 | `--force` | init | 기존 `AGENTS.md`를 덮어씁니다 |
 | `--dry-run` | init | 파일을 쓰지 않고 출력만 합니다 |
 
-옵션은 명령마다 정해져 있습니다. 다른 명령의 옵션을 붙이면(`agentready init --json`) 조용히 무시하지 않고 사용법 오류로 끝납니다.
+옵션은 명령마다 정해져 있습니다. 다른 명령의 옵션을 붙이면(`agent-lint init --json`) 조용히 무시하지 않고 사용법 오류로 끝납니다.
 
 </details>
 
@@ -159,7 +159,7 @@ agentready check --ignore typescript-strict --ignore ci-workflow
 ## 라이브러리로 쓰기
 
 ```ts
-import { check, formatText } from 'agentready';
+import { check, formatText } from 'agent-lint';
 
 const report = await check('.');
 console.log(formatText(report, { color: false }));
@@ -186,7 +186,7 @@ if (!report.passed) process.exitCode = 1;
 | `pass`, `fail`, `skip` | 규칙 결과를 만드는 함수. `fail(message, fix)`는 `fix`가 필수입니다 |
 | `RepoContext` | 규칙이 파일을 읽는 객체. 같은 파일은 여러 규칙이 읽어도 한 번만 읽습니다 |
 | `computeScore(findings)` | 점수만 따로 계산합니다 |
-| `renderAgentsMd` | `agentready init`이 쓰는 `AGENTS.md` 초안을 만듭니다 |
+| `renderAgentsMd` | `agent-lint init`이 쓰는 `AGENTS.md` 초안을 만듭니다 |
 | `formatRulesMarkdown`, `formatRulesJson`, `formatRulesText` | 규칙 목록을 Markdown·JSON·텍스트로 출력합니다 |
 | `Finding`, `Report`, `Rule`, `RuleResult`, `Severity`, `Status` | 타입 |
 

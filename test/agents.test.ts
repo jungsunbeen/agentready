@@ -40,14 +40,14 @@ describe('planAgents', () => {
   });
 });
 
-describe('agentready init --agent', () => {
+describe('agent-lint init --agent', () => {
   it('installs a Claude Code skill that preloads the check result', async () => {
     const root = await makeRepo(PROJECT);
     expect((await init(root, '--agent', 'claude')).code).toBe(0);
 
     const skill = await read(root, CLAUDE_SKILL);
-    expect(skill).toMatch(/^---\ndescription: .+\nallowed-tools: Bash\(agentready check --json --exit-zero\)/);
-    expect(skill).toContain('!`agentready check --json --exit-zero`');
+    expect(skill).toMatch(/^---\ndescription: .+\nallowed-tools: Bash\(agent-lint check --json --exit-zero\)/);
+    expect(skill).toContain('!`agent-lint check --json --exit-zero`');
     expect(await read(root, 'CLAUDE.md')).toBe('@AGENTS.md\n');
   });
 
@@ -59,7 +59,7 @@ describe('agentready init --agent', () => {
 
     const skill = await read(root, SHARED_SKILL);
     expect(skill).toMatch(new RegExp(`^---\\nname: ${SKILL_NAME}\\ndescription: `));
-    expect(skill).toContain('Run `agentready check --json --exit-zero`');
+    expect(skill).toContain('Run `agent-lint check --json --exit-zero`');
   });
 
   it('keeps an existing AGENTS.md and existing skills instead of failing', async () => {

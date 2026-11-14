@@ -38,7 +38,7 @@ export const agentInstructions: Rule = {
     if (doc) return pass(`Found ${doc.path}.`);
     return fail(
       'No agent instructions file found.',
-      'Run `agentready init` to generate AGENTS.md from your package.json scripts.',
+      'Run `agent-lint init` to generate AGENTS.md from your package.json scripts.',
     );
   },
 };

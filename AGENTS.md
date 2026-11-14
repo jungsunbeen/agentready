@@ -1,4 +1,4 @@
-# agentready
+# agent-lint
 
 CLI and library that checks whether a repository is ready for AI coding agents. TypeScript, ESM, Node.js 22+, zero runtime dependencies.
 

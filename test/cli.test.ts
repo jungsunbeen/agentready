@@ -20,7 +20,7 @@ async function cli(argv: string[], cwd: string) {
   return { code, stdout, stderr };
 }
 
-describe('agentready check', () => {
+describe('agent-lint check', () => {
   it('exits 0 for a ready repository and checks cwd by default', async () => {
     const result = await cli([], await makeRepo(GOOD_REPO));
     expect(result.code).toBe(0);
@@ -125,7 +125,7 @@ describe('option validation', () => {
   });
 });
 
-describe('agentready rules', () => {
+describe('agent-lint rules', () => {
   it('lists every rule', async () => {
     const { code, stdout } = await cli(['rules'], process.cwd());
     expect(code).toBe(0);
@@ -133,7 +133,7 @@ describe('agentready rules', () => {
   });
 });
 
-describe('agentready init', () => {
+describe('agent-lint init', () => {
   const files = {
     'package.json': json({ name: 'app', scripts: { build: 'tsc', lint: 'eslint .', test: 'vitest run' } }),
     'pnpm-lock.yaml': '',

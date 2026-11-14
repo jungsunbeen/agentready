@@ -10,7 +10,7 @@ const created: string[] = [];
 
 /** Creates a throwaway repository with the given files. Removed after each test by test/setup.ts. */
 export async function makeRepo(files: Files = {}): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), 'agentready-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'agent-lint-'));
   created.push(root);
   for (const [relPath, content] of Object.entries(files)) {
     const fullPath = path.join(root, relPath);

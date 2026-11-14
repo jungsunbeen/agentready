@@ -20,7 +20,7 @@ export interface Io {
 
 export const EXIT = { ok: 0, failed: 1, usage: 2 } as const;
 
-const HELP = `Usage: agentready [command] [dir] [options]
+const HELP = `Usage: agent-lint [command] [dir] [options]
 
 Commands:
   check [dir]   Check a repository (default)
@@ -96,7 +96,7 @@ function parseIgnore(raw: readonly string[] | undefined): readonly string[] {
   const ignore = raw ?? [];
   const unknown = ignore.filter((id) => !RULE_IDS.includes(id));
   if (unknown.length > 0) {
-    throw new UsageError(`Unknown rule in --ignore: ${unknown.join(', ')}. Run \`agentready rules\` to list rule IDs.`);
+    throw new UsageError(`Unknown rule in --ignore: ${unknown.join(', ')}. Run \`agent-lint rules\` to list rule IDs.`);
   }
   return ignore;
 }
@@ -145,7 +145,7 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
     }
   } catch (error) {
     const usage = error instanceof UsageError || (isRecord(error) && typeof error.code === 'string' && error.code.startsWith('ERR_PARSE_ARGS'));
-    io.stderr(`agentready: ${errorMessage(error)}\n`);
+    io.stderr(`agent-lint: ${errorMessage(error)}\n`);
     if (usage) io.stderr(`\n${HELP}`);
     return EXIT.usage;
   }
@@ -207,7 +207,7 @@ async function runInit(dir: string, values: Values, io: Io): Promise<number> {
   if (create.some((file) => file.path === 'AGENTS.md')) lines.push('', 'Fill in the TODO comments in AGENTS.md.');
   if (agents.length > 0) {
     const tools = agents.map((agent) => AGENT_NAMES[agent]).join(', ');
-    lines.push(`Connected ${tools}. Ask the agent to "fix agentready findings", or call the ${SKILL_NAME} skill directly.`);
+    lines.push(`Connected ${tools}. Ask the agent to "fix agent-lint findings", or call the ${SKILL_NAME} skill directly.`);
   }
   io.stdout(`${lines.join('\n')}\n`);
   return EXIT.ok;
