@@ -1,4 +1,5 @@
 import type { RepoContext } from '../context.js';
+import { readPackageJson } from '../package-json.js';
 import type { Rule } from '../types.js';
 import { fail, pass } from './result.js';
 
@@ -36,9 +37,12 @@ export const agentInstructions: Rule = {
   async check(ctx) {
     const doc = await findAgentDoc(ctx);
     if (doc) return pass(`Found ${doc.path}.`);
+    const hasPackageJson = (await readPackageJson(ctx)).kind === 'ok';
     return fail(
       'No agent instructions file found.',
-      'Run `agent-lint init` to generate AGENTS.md from your package.json scripts.',
+      hasPackageJson
+        ? 'Run `agent-lint init` to generate AGENTS.md from your package.json scripts.'
+        : 'Run `agent-lint init` to generate an AGENTS.md draft, then list the commands to build and test this project.',
     );
   },
 };

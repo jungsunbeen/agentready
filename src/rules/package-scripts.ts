@@ -26,12 +26,16 @@ export const packageScripts: Rule = {
     const missing = REQUIRED_SCRIPTS.filter((name) => !scripts.has(name));
     if (missing.length > 0) problems.push(`missing ${missing.join(', ')}`);
     const test = scripts.get('test');
-    if (test !== undefined && NPM_PLACEHOLDER_TEST.test(test)) problems.push('"test" is the npm placeholder');
+    const placeholder = test !== undefined && NPM_PLACEHOLDER_TEST.test(test);
+    if (placeholder) problems.push('"test" is the npm placeholder');
 
     if (problems.length > 0) {
+      // Name only the scripts that need work, so the fix is one concrete action.
+      const toFix = REQUIRED_SCRIPTS.filter((name) => missing.includes(name) || (name === 'test' && placeholder));
+      const names = toFix.map((name) => `"${name}"`).join(' and ');
       return fail(
         `package.json scripts: ${problems.join('; ')}.`,
-        `Add working ${REQUIRED_SCRIPTS.map((name) => `"${name}"`).join(' and ')} scripts.`,
+        toFix.length === 1 ? `Add a working ${names} script.` : `Add working ${names} scripts.`,
       );
     }
     return pass(`Has ${REQUIRED_SCRIPTS.join(' and ')} scripts.`);

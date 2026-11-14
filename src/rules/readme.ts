@@ -3,7 +3,7 @@ import { fail, pass } from './result.js';
 
 const README_NAME = /^readme(\.md|\.markdown|\.mdx)?$/i;
 const HEADING = /^#{1,6}\s+(.+)$/gm;
-const USAGE_KEYWORDS = ['usage', 'getting started', 'quick start', 'quickstart', 'install', '사용', '시작', '설치'];
+const USAGE_KEYWORDS = ['usage', 'getting started', 'quick start', 'quickstart', 'install', '사용', '시작', '설치', '실행'];
 
 /** Returns true when any Markdown heading looks like a usage or installation section. */
 export function hasUsageSection(markdown: string): boolean {

@@ -26,8 +26,10 @@ const TODO = (text: string) => `<!-- TODO: ${text} -->`;
 export async function renderAgentsMd(ctx: RepoContext): Promise<string> {
   const file = await readPackageJson(ctx);
   const pkg = file.kind === 'ok' ? file.pkg : undefined;
-  const manager = (await findLockfiles(ctx))[0]?.manager ?? 'npm';
-  const install = manager === 'npm' ? 'npm ci' : `${manager} install`;
+  const lockfile = (await findLockfiles(ctx))[0];
+  const manager = lockfile?.manager ?? 'npm';
+  // `npm ci` fails without package-lock.json, so it is only written when one exists.
+  const install = manager === 'npm' ? (lockfile ? 'npm ci' : 'npm install') : `${manager} install`;
 
   const present = KNOWN_SCRIPTS.filter(([script]) => pkg?.scripts.has(script) === true);
   const command = (script: string) => `\`${manager} run ${script}\``;
@@ -39,10 +41,14 @@ export async function renderAgentsMd(ctx: RepoContext): Promise<string> {
     '',
     '## Commands',
     '',
-    `- Install: \`${install}\``,
-    ...present.map(([script, label]) => `- ${label}: ${command(script)}`),
   ];
-  if (present.length === 0) lines.push(TODO('Add build, lint and test scripts to package.json, then list them here.'));
+  if (pkg === undefined) {
+    // Without package.json there is no install command to state as fact.
+    lines.push(TODO('No package.json found. List the commands to install, build and test this project.'));
+  } else {
+    lines.push(`- Install: \`${install}\``, ...present.map(([script, label]) => `- ${label}: ${command(script)}`));
+    if (present.length === 0) lines.push(TODO('Add build, lint and test scripts to package.json, then list them here.'));
+  }
 
   const verify = present.filter(([script]) => VERIFY_SCRIPTS.has(script));
   lines.push('', '## Before you finish', '');

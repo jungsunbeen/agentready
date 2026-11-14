@@ -24,6 +24,13 @@ describe('agent-instructions', () => {
     expect(await runRule(agentInstructions, {})).toMatchObject({ status: 'fail' });
     expect(await runRule(agentInstructions, { 'AGENTS.md': '  \n' })).toMatchObject({ status: 'fail' });
   });
+
+  it('mentions package.json scripts in the fix only when package.json exists', async () => {
+    const withPkg = await runRule(agentInstructions, { 'package.json': pkgWith({}) });
+    expect(withPkg.fix).toContain('package.json scripts');
+    const withoutPkg = await runRule(agentInstructions, {});
+    expect(withoutPkg.fix).not.toContain('package.json');
+  });
 });
 
 describe('referencedScripts', () => {
@@ -66,6 +73,7 @@ describe('readme', () => {
   it('passes with a usage heading, in English or Korean', async () => {
     expect(await runRule(readme, { 'README.md': '# x\n## Usage\n' })).toMatchObject({ status: 'pass' });
     expect(await runRule(readme, { 'readme.md': '# x\n## 사용법\n' })).toMatchObject({ status: 'pass' });
+    expect(await runRule(readme, { 'README.md': '# x\n## 실행 방법\n' })).toMatchObject({ status: 'pass' });
   });
 
   it('fails without a usage heading', async () => {
@@ -88,6 +96,14 @@ describe('package-scripts', () => {
     const result = await runRule(packageScripts, { 'package.json': pkgWith({ scripts: { lint: 'eslint', test: placeholder } }) });
     expect(result.status).toBe('fail');
     expect(result.message).toContain('placeholder');
+    expect(result.fix).toBe('Add a working "test" script.');
+  });
+
+  it('names only the missing scripts in the fix', async () => {
+    const result = await runRule(packageScripts, { 'package.json': pkgWith({ scripts: { lint: 'eslint' } }) });
+    expect(result.fix).toBe('Add a working "test" script.');
+    const none = await runRule(packageScripts, { 'package.json': pkgWith({}) });
+    expect(none.fix).toBe('Add working "lint" and "test" scripts.');
   });
 
   it('fails on missing scripts and invalid JSON', async () => {

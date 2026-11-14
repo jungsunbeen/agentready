@@ -171,9 +171,17 @@ describe('agent-lint init', () => {
     expect(await new RepoContext(root).exists('AGENTS.md')).toBe(false);
   });
 
-  it('leaves TODOs when there is no package.json', async () => {
+  it('leaves TODOs and no install command when there is no package.json', async () => {
     const text = await renderAgentsMd(new RepoContext(await makeRepo()));
-    expect(text).toContain('- Install: `npm ci`');
-    expect(text).toContain('TODO: Add build, lint and test scripts');
+    expect(text).not.toContain('- Install:');
+    expect(text).toContain('TODO: No package.json found.');
+  });
+
+  it('uses npm ci only when package-lock.json exists', async () => {
+    const pkg = { 'package.json': json({ name: 'app', scripts: { test: 'vitest run' } }) };
+    const withoutLock = await renderAgentsMd(new RepoContext(await makeRepo(pkg)));
+    expect(withoutLock).toContain('- Install: `npm install`');
+    const withLock = await renderAgentsMd(new RepoContext(await makeRepo({ ...pkg, 'package-lock.json': '{}' })));
+    expect(withLock).toContain('- Install: `npm ci`');
   });
 });
