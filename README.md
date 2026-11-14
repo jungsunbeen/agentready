@@ -2,8 +2,9 @@
 
 [![CI](https://github.com/jungsunbeen/agentready/actions/workflows/ci.yml/badge.svg)](https://github.com/jungsunbeen/agentready/actions/workflows/ci.yml)
 
-리포지토리가 **AI 코딩 에이전트가 일하기 좋은 상태인지 검사하고, 고칠 방법을 알려주는 CLI 도구**입니다.
-Claude Code, Codex, GitHub Copilot CLI에 검사 결과를 보고 직접 고치는 스킬을 설치할 수 있습니다.
+**리포지토리가 AI 코딩 에이전트에게 일하기 좋은 상태인지 검사하고, 고칠 방법까지 알려주는 CLI.**
+
+에이전트는 매 세션을 프로젝트 기억 없이 시작합니다. 그래서 사람에겐 사소한 빈틈이 에이전트에겐 그대로 실패가 됩니다. agentready는 그런 빈틈을 규칙으로 만들어 CI가 잡게 하고, 고치는 일은 AI에게 맡깁니다.
 
 ```console
 $ agentready
@@ -22,55 +23,56 @@ $ agentready
 Score 46/100 · 4 passed, 3 failed, 1 skipped
 ```
 
-검사 대상은 `package.json`과 `tsconfig.json`을 쓰는 JS/TS 리포지토리입니다. Next.js, React, Node.js 프로젝트를 비롯해 프레임워크는 가리지 않습니다. 규칙이 프레임워크 기능이 아니라 저장소의 파일과 설정을 보기 때문입니다.
-도구를 실행하려면 Node.js 22 이상이 필요하고, 검사받는 프로젝트가 요구하는 Node.js 버전은 `node-version` 규칙이 따로 확인합니다.
-해당하지 않는 규칙은 실패가 아니라 `skip`으로 표시되어 점수 계산에서 빠집니다. 예를 들어 `package.json`이 없는 저장소에서는 `package-scripts`와 `agent-commands`가 skip됩니다.
+- **사실만 봅니다.** 파일과 설정을 읽어 확인하고, 판단이 필요한 항목은 검사하지 않습니다.
+- **실패에는 항상 `fix`가 붙습니다.** 출력만 본 사람도, AI도 바로 다음 행동을 알 수 있습니다.
+- **AI 도구에 바로 연결됩니다.** `init --agent`로 수정 스킬을 설치하면 검사 → 수정 → 재검사를 스스로 반복합니다.
+- **런타임 의존성이 없습니다.** Node.js 표준 모듈만 쓰므로 어떤 프로젝트에 설치해도 의존성 충돌이 없습니다.
+
+## 빠른 시작
+
+```bash
+# 1. 설치 — 아직 npm에 배포하지 않아 저장소에서 빌드합니다
+git clone https://github.com/jungsunbeen/agentready.git
+cd agentready && npm ci && npm run build && npm link
+
+# 2. 검사할 프로젝트에서
+cd ~/my-project
+agentready                        # 검사
+agentready init                   # package.json 스크립트로 AGENTS.md 초안 생성
+agentready init --agent claude    # Claude Code에 수정 스킬 연결
+```
+
+npm의 `agentready`는 이 프로젝트와 무관한 다른 패키지입니다. `npx agentready`로는 실행하지 마세요. `npm link`를 되돌리려면 `npm uninstall -g agentready`를 실행합니다.
+
+## 검사 대상
+
+- `package.json`과 `tsconfig.json`을 쓰는 JS/TS 리포지토리입니다. Next.js, React, Node.js 등 프레임워크는 가리지 않습니다. 규칙이 프레임워크 기능이 아니라 저장소의 파일과 설정을 보기 때문입니다.
+- 도구를 실행하려면 Node.js 22 이상이 필요합니다. 검사 대상 프로젝트가 요구하는 Node 버전은 `node-version` 규칙이 따로 봅니다.
+- 해당하지 않는 규칙은 실패가 아니라 `skip`으로 표시되어 점수 계산에서 빠집니다. `package.json`이 없는 저장소에서는 `package-scripts`와 `agent-commands`가 skip됩니다.
 
 ## 동작 방식
 
-### 해결하려는 문제
+```
+run.ts         argv → 명령 + 옵션
+  ↓
+RepoContext    파일 1회 캐시 읽기
+  ↓
+Rule[]         규칙별 예외 격리 실행
+  ↓
+Report         가중치 점수 · fix · 종료 코드
+```
 
-에이전트는 매 세션을 프로젝트에 대한 기억 없이 시작합니다. 사람에게는 사소한 빈틈이 에이전트에게는 그대로 실패로 이어집니다.
-
-- 지침 파일(`AGENTS.md`)이 없으면 빌드·테스트 명령을 추측합니다.
-- 지침에 적힌 `npm run check`가 이미 이름이 바뀐 스크립트라면, 실패하는 명령을 실행한 뒤 즉흥적으로 우회합니다.
-- `test` 스크립트가 `npm init` 기본값이면 자기 변경을 검증할 수단이 없습니다.
-- 락파일이 둘이면 어떤 패키지 매니저를 쓸지 골라야 합니다.
-
-이런 빈틈은 대부분 파일 몇 개만 보면 기계적으로 찾을 수 있습니다. agentready는 이를 규칙으로 만들어 리뷰에서 매번 지적하지 않아도 CI가 잡게 하고, 고치는 일은 AI에게 맡깁니다.
-
-특히 [`agent-commands`](docs/rules.md#agent-commands) 규칙은 지침 파일이 **있는지**가 아니라 **사실인지**를 검사합니다. 지침에 적힌 명령이 `package.json`에 실제로 있는지 대조합니다.
-
-### 역할 분담
-
-| 주체 | 역할 |
-|---|---|
-| 프로그램 | 파일을 읽어 규칙 검사, 점수 계산, 실패마다 고칠 방법(`fix`) 제시, `AGENTS.md` 초안 생성 |
-| AI | 검사 결과의 `fix`를 따라 수정, 다시 검사해 통과할 때까지 반복 |
-| 개발자 | 어떤 락파일을 남길지처럼 판단이 필요한 항목 결정, AI가 만든 변경 검토 |
+- **프로그램**은 파일을 읽어 규칙을 검사하고, 점수를 계산하고, 실패마다 `fix`를 붙입니다. `AGENTS.md` 초안도 만듭니다.
+- **AI**는 `fix`를 따라 고치고, 다시 검사해 통과할 때까지 반복합니다.
+- **개발자**는 어떤 락파일을 남길지처럼 판단이 필요한 항목을 정하고, AI가 만든 변경을 검토합니다.
 
 프로그램은 판단하지 않고 사실만 확인합니다. 예를 들어 `pnpm build`는 스크립트일 수도 pnpm 내장 명령일 수도 있어서 검사하지 않습니다. 틀린 경고보다 놓친 경고가 낫다고 봤습니다.
 
-## 설치와 AI 도구 연결
+특히 [`agent-commands`](docs/rules.md#agent-commands) 규칙은 지침 파일이 **있는지**가 아니라 **사실인지**를 검사합니다. 지침에 적힌 명령을 `package.json`과 대조합니다.
 
-### 공통 설치
+## AI 도구 연결
 
-Node.js 22 이상이 필요합니다. 런타임 의존성은 없습니다.
-아직 npm에 배포하지 않았으므로 저장소에서 빌드해 설치합니다. npm의 `agentready`는 이 프로젝트와 관계없는 다른 패키지이니 `npx agentready`로 실행하지 마세요.
-
-```bash
-git clone https://github.com/jungsunbeen/agentready.git
-cd agentready
-npm ci
-npm run build
-npm link
-```
-
-`npm link`가 `agentready` 명령을 전역에 연결합니다. 지우려면 `npm uninstall -g agentready`를 실행합니다.
-
-### AI 도구 연결
-
-**agentready 저장소가 아니라 검사할 프로젝트 폴더**에서 쓰는 도구를 연결합니다. `--agent`를 반복하면 여러 도구를 함께 연결할 수 있습니다.
+**agentready 저장소가 아니라 검사할 프로젝트 폴더**에서 실행합니다. `--agent`를 반복하면 여러 도구를 함께 연결할 수 있습니다.
 
 | 도구 | 연결 | 스킬 호출 | 설치되는 파일 |
 |---|---|---|---|
@@ -78,52 +80,18 @@ npm link
 | Codex | `agentready init --agent codex` | `$agentready-fix` | `.agents/skills/agentready-fix/SKILL.md` |
 | Copilot CLI | `agentready init --agent copilot` | `/agentready-fix` | `.agents/skills/agentready-fix/SKILL.md` |
 
-- Claude Code용 스킬은 `agentready check --json --exit-zero`를 실행한 결과를 미리 담아 시작하므로, AI가 명령을 한 번 덜 실행합니다.
+- Claude Code 스킬은 `agentready check --json --exit-zero` 결과를 미리 담고 시작해서, AI가 명령을 한 번 덜 실행합니다.
 - Codex와 Copilot CLI는 같은 `.agents/skills` 위치를 읽으므로 스킬 파일 하나를 공유합니다.
-- Claude Code는 `AGENTS.md` 대신 `CLAUDE.md`를 읽기 때문에, `CLAUDE.md`가 없으면 `@AGENTS.md` 한 줄로 만들어 같은 지침을 보게 합니다.
+- Claude Code는 `AGENTS.md` 대신 `CLAUDE.md`를 읽습니다. `CLAUDE.md`가 없으면 `@AGENTS.md` 한 줄로 만들어 같은 지침을 보게 합니다.
 
-`AGENTS.md`가 없으면 함께 만듭니다. 이미 있는 파일은 건드리지 않으므로 여러 번 연결해도 결과가 같습니다.
+`AGENTS.md`가 없으면 함께 만듭니다. 이미 있는 파일은 건드리지 않으므로 몇 번을 연결해도 결과가 같습니다.
 
 ## 기본 작업 흐름
 
-### 1. 검사하기
-
-프로젝트 폴더에서 `agentready`를 실행합니다. 실패한 규칙마다 `→` 뒤에 할 일이 나옵니다.
-
-### 2. 지침 파일 만들기
-
-`agentready init`이 `package.json`의 스크립트와 락파일을 읽어 `AGENTS.md` 초안을 만듭니다.
-pnpm 락파일이 있으면 `pnpm run test`처럼 그 패키지 매니저로 명령을 적으므로, 만들어진 파일은 `agent-commands` 규칙을 항상 통과합니다.
-`<!-- TODO -->` 주석으로 남은 프로젝트 설명과 규칙은 직접 채웁니다.
-
-### 3. AI에게 고치게 하기
-
-연결한 도구에서 `/agentready-fix`(Codex는 `$agentready-fix`)를 호출합니다.
-AI는 `error` 규칙부터 `fix`를 따라 고치고, 다시 검사해 통과할 때까지 반복한 뒤 점수 변화를 보고합니다.
-어떤 Node.js 버전을 요구할지처럼 판단이 필요한 항목은 추측하지 않고 개발자에게 묻습니다.
-
-### 4. CI로 유지하기
-
-지침 파일은 시간이 지나면 코드와 어긋납니다. CI에서 `agentready --fail-under 90`처럼 실행하면 스크립트 이름을 바꾸고 지침을 고치지 않은 PR이 바로 실패합니다.
-이 저장소도 CI에서 자기 자신을 100점 기준으로 검사합니다.
-
-## 명령어
-
-| 명령어 | 하는 일 |
-|---|---|
-| `agentready [dir]` | `agentready check`와 같습니다 |
-| `agentready check [dir]` | 저장소를 검사하고 결과와 점수를 출력합니다 |
-| `agentready check --json` | 결과를 JSON으로 출력합니다. 스킬과 스크립트가 사용합니다 |
-| `agentready check --fail-under <n>` | 점수가 `n` 미만이면 종료 코드 `1`로 끝납니다 |
-| `agentready check --exit-zero` | 결과와 관계없이 `0`으로 끝납니다. 결과만 읽는 스킬이 사용합니다 |
-| `agentready rules` | 규칙 목록을 출력합니다. `--json`, `--markdown`도 지원합니다 |
-| `agentready init [dir]` | `AGENTS.md` 초안을 만듭니다. 이미 있으면 실패하며 `--force`로 덮어씁니다 |
-| `agentready init --dry-run` | 파일을 쓰지 않고 `AGENTS.md` 내용만 출력합니다 |
-| `agentready init --agent <이름>` | AI 도구 연결 파일을 설치합니다. 기존 `AGENTS.md`는 그대로 둡니다 |
-| `agentready --help` | 사용법을 출력합니다 |
-| `agentready --version` | 현재 버전을 출력합니다 |
-
-종료 코드는 `0` 성공, `1` `error` 규칙 실패 또는 `--fail-under` 미달, `2` 잘못된 사용법입니다.
+1. **검사** — 프로젝트 폴더에서 `agentready`를 실행합니다. 실패한 규칙마다 `→` 뒤에 할 일이 나옵니다.
+2. **지침 파일 만들기** — `agentready init`이 `package.json` 스크립트와 락파일을 읽어 `AGENTS.md` 초안을 만듭니다. pnpm 락파일이 있으면 `pnpm run test`처럼 그 패키지 매니저의 명령으로 적어 `agent-commands` 규칙을 통과합니다. `<!-- TODO -->`로 남은 프로젝트 설명은 직접 채웁니다.
+3. **AI에게 고치게 하기** — 연결한 도구에서 `/agentready-fix`(Codex는 `$agentready-fix`)를 호출합니다. AI가 `error` 규칙부터 `fix`를 따라 고치고, 통과할 때까지 다시 검사합니다. 어떤 Node 버전을 요구할지처럼 판단이 필요한 항목은 추측하지 않고 개발자에게 묻습니다.
+4. **CI로 유지하기** — 지침은 시간이 지나면 코드와 어긋납니다. CI에서 `agentready --fail-under 90`으로 실행하면 스크립트 이름만 바꾸고 지침을 고치지 않은 PR이 바로 실패합니다. 이 저장소도 CI에서 자기 자신을 100점 기준으로 검사합니다.
 
 ## 규칙
 
@@ -138,11 +106,55 @@ AI는 `error` 규칙부터 `fix`를 따라 고치고, 다시 검사해 통과할
 | `single-lockfile` | warning | 락파일이 정확히 하나인가 |
 | `node-version` | warning | Node.js 버전이 선언되어 있는가 |
 
-`error` 규칙은 종료 코드를 정하고, `warning` 규칙은 점수만 낮춥니다.
-점수는 적용되는 규칙 중 통과한 비율이며 `error`가 `warning`의 3배 가중치입니다.
-`package.json`이 없는 저장소의 `package-scripts`처럼 해당되지 않는 규칙은 `skip`되어 계산에서 빠집니다.
+`error` 규칙은 종료 코드를 정하고, `warning` 규칙은 점수만 낮춥니다. 점수는 적용되는 규칙 중 통과한 비율이며 `error`가 `warning`의 3배 가중치입니다.
+규칙마다 왜 필요한지는 [docs/rules.md](docs/rules.md)에 있습니다. 이 문서는 코드에서 생성하며, 코드와 어긋나면 테스트가 실패합니다.
 
-각 규칙이 왜 필요한지는 [docs/rules.md](docs/rules.md)에 있습니다. 이 문서는 코드에서 생성하며, 코드와 어긋나면 테스트가 실패합니다.
+### 규칙 끄기
+
+```bash
+agentready check --ignore typescript-strict
+agentready check --ignore typescript-strict --ignore ci-workflow
+```
+
+`--ignore`한 규칙은 실행하지 않고 `skip`으로 표시해 점수 분모에서 뺍니다. 라이브러리에서는 `check(root, { ignore: ['typescript-strict'] })`로 넘깁니다. 없는 규칙 ID를 넘기면 `agentready rules`로 확인하라는 사용법 오류(종료 코드 `2`)가 납니다.
+
+## 명령어
+
+| 명령어 | 하는 일 |
+|---|---|
+| `agentready [dir]` | `agentready check`와 같습니다 |
+| `agentready init [dir]` | `AGENTS.md` 초안을 만듭니다 |
+| `agentready init --agent <이름>` | AI 도구 연결 파일을 설치합니다 |
+
+<details>
+<summary>전체 명령어와 옵션 보기</summary>
+
+| 명령어 | 하는 일 |
+|---|---|
+| `agentready check [dir]` | 저장소를 검사하고 결과와 점수를 출력합니다 |
+| `agentready check --json` | 결과를 JSON으로 출력합니다. 스킬과 스크립트가 사용합니다 |
+| `agentready rules` | 규칙 목록을 출력합니다. `--json`, `--markdown`도 지원합니다 |
+| `agentready init --dry-run` | 파일을 쓰지 않고 `AGENTS.md` 내용만 출력합니다 |
+| `agentready init --force` | 이미 있는 `AGENTS.md`를 덮어씁니다 |
+| `agentready --help` | 사용법을 출력합니다 |
+| `agentready --version` | 현재 버전을 출력합니다 |
+
+| 옵션 | 쓰는 명령 | 내용 |
+|---|---|---|
+| `--json` | check, rules | 기계가 읽는 출력 |
+| `--fail-under <n>` | check | 점수가 `n` 미만이면 종료 코드 `1` |
+| `--exit-zero` | check | 결과와 관계없이 `0`으로 끝납니다 |
+| `--ignore <ruleId>` | check | 규칙을 건너뜁니다. 반복할 수 있습니다 |
+| `--markdown` | rules | 규칙을 Markdown으로 출력합니다 |
+| `--agent <이름>` | init | AI 도구 연결 파일을 설치합니다. 반복할 수 있습니다 |
+| `--force` | init | 기존 `AGENTS.md`를 덮어씁니다 |
+| `--dry-run` | init | 파일을 쓰지 않고 출력만 합니다 |
+
+옵션은 명령마다 정해져 있습니다. 다른 명령의 옵션을 붙이면(`agentready init --json`) 조용히 무시하지 않고 사용법 오류로 끝납니다.
+
+</details>
+
+종료 코드는 `0` 성공, `1` `error` 규칙 실패 또는 `--fail-under` 미달, `2` 잘못된 사용법입니다.
 
 ## 라이브러리로 쓰기
 
@@ -154,17 +166,19 @@ console.log(formatText(report, { color: false }));
 if (!report.passed) process.exitCode = 1;
 ```
 
-`check(root, options?)`는 저장소 경로를 받아 `Report`를 돌려줍니다. `options.rules`에 규칙 배열을 넘기면 기본 규칙 대신 그것만 실행합니다.
-
-| `Report` 필드 | 내용 |
+| API | 내용 |
 |---|---|
-| `root` | 검사한 저장소의 절대 경로 |
-| `score` | 0–100. `error`가 `warning`의 3배 가중치이고, skip된 규칙은 분모에서 빠집니다 |
-| `passed` | `error` 규칙이 하나도 실패하지 않았는지 |
-| `summary` | `pass`, `fail`, `skip` 개수 |
-| `findings` | 규칙별 결과. `ruleId`, `severity`, `status`, `message`, 실패면 `fix`가 함께 옵니다 |
+| `check(root, options?)` | 규칙을 실행하고 `Report`를 돌려줍니다. `options.rules`에 규칙 배열을, `options.ignore`에 건너뛸 규칙 ID를 넘깁니다. `root`가 디렉터리가 아니면 예외를 던집니다 |
+| `report.score` | 0–100. `error`가 `warning`의 3배 가중치이고, skip된 규칙은 분모에서 빠집니다 |
+| `report.passed` | `error` 규칙이 하나도 실패하지 않았는지 |
+| `report.summary` | `pass`, `fail`, `skip` 개수 |
+| `report.findings` | 규칙별 결과. `ruleId`, `severity`, `status`, `message`, 실패면 `fix`가 함께 옵니다 |
+| `formatText`, `formatJson` | `Report`를 터미널 텍스트나 JSON으로 출력합니다 |
 
-패키지가 함께 내보내는 것도 그대로 쓸 수 있습니다.
+직접 만든 규칙을 넘기는 방법은 [규칙 추가하기](docs/adding-a-rule.md)에 있습니다.
+
+<details>
+<summary>패키지가 내보내는 전체 목록 보기</summary>
 
 | 내보내는 것 | 설명 |
 |---|---|
@@ -173,16 +187,16 @@ if (!report.passed) process.exitCode = 1;
 | `RepoContext` | 규칙이 파일을 읽는 객체. 같은 파일은 여러 규칙이 읽어도 한 번만 읽습니다 |
 | `computeScore(findings)` | 점수만 따로 계산합니다 |
 | `renderAgentsMd` | `agentready init`이 쓰는 `AGENTS.md` 초안을 만듭니다 |
-| `formatText`, `formatJson`, `formatRulesMarkdown` | `Report`를 텍스트·JSON·Markdown으로 출력합니다 |
+| `formatRulesMarkdown`, `formatRulesJson`, `formatRulesText` | 규칙 목록을 Markdown·JSON·텍스트로 출력합니다 |
 | `Finding`, `Report`, `Rule`, `RuleResult`, `Severity`, `Status` | 타입 |
 
-직접 만든 규칙을 넘기는 방법은 [규칙 추가하기](docs/adding-a-rule.md)에 있습니다.
+</details>
 
 ## 개발과 테스트
 
 ```bash
 npm ci
-npm run typecheck   # 타입 검사
+npm run typecheck   # 타입 검사 (src, test, vitest.config.ts)
 npm run lint        # 린트
 npm run build       # dist/에 빌드
 npm test            # 테스트
@@ -190,26 +204,29 @@ npm run docs        # 규칙을 바꿨다면 빌드 후 docs/rules.md 재생성
 npm run check:self  # 빌드 후 이 저장소를 자기 자신으로 검사
 ```
 
-### 빌드와 타입 검사
-
-`tsconfig.json`은 `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`를 켜 두고 `src`와 `test`, `vitest.config.ts`를 검사합니다(`noEmit`).
-
-빌드는 `tsconfig.build.json`이 맡습니다. `tsconfig.json`을 상속해 `src`만 `dist/`의 JS와 `.d.ts`로 내보내고, `package.json`의 `exports`가 그 결과를 노출합니다. 테스트 코드는 배포물에 들어가지 않습니다.
+- **런타임 의존성은 0개**입니다. 외부 패키지 없이 Node.js 표준 모듈만으로 구현해, 이 도구를 설치한 프로젝트의 의존성과 버전이 충돌할 여지를 없앴습니다.
+- **엄격한 타입 검사**를 켜 두었습니다. `strict`에 더해 `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`까지 켜서 인덱스 접근과 옵셔널 프로퍼티 누락을 컴파일 단계에서 잡습니다.
+- **검사와 빌드를 나눴습니다.** `tsconfig.json`은 `src`·`test`·`vitest.config.ts`를 `noEmit`으로 검사하고, `tsconfig.build.json`은 `src`만 `dist/`의 JS와 `.d.ts`로 내보냅니다.
+- **배포는 `package.json`의 `exports`를 따릅니다.** 타입은 `dist/index.d.ts`, 런타임은 `dist/index.js`로 노출되고, 테스트 코드는 배포물에 들어가지 않습니다.
+- **실패에는 항상 다음 행동을 붙입니다.** `fail(message, fix)`가 `fix`를 필수로 받게 해, 출력만 본 사람이나 AI가 바로 고칠 수 있습니다.
+- **신뢰할 수 없는 JSON은 `unknown`으로 받습니다.** `as` 캐스팅 없이 검증한 값만 씁니다.
+- **규칙 하나가 깨져도 검사는 계속됩니다.** 예외를 던진 규칙은 실패로 보고됩니다.
 
 ### CI에서 확인하는 것
 
-GitHub Actions는 `main` 브랜치에 push하거나 PR을 만들 때 Node.js 22와 24에서 타입 검사·린트·빌드를 먼저 돌리고, 이어서 세 가지를 확인합니다.
+`main`에 push하거나 PR을 만들면 Node.js 22와 24에서 타입 검사·린트·빌드를 먼저 돌리고, 이어서 세 가지를 확인합니다.
 
 1. `npm test` — `vitest`가 `mkdtemp`로 만든 임시 디렉터리에 가짜 저장소를 만들어 실제 파일시스템에서 규칙을 실행합니다.
 2. 문서 일치 — `test/docs.test.ts`가 코드의 규칙 정의와 커밋된 `docs/rules.md`를 비교합니다. 규칙을 바꾸고 문서를 다시 만들지 않으면 실패합니다.
 3. `check:self` — 이 저장소를 자기 자신으로 검사해 100점을 요구합니다.
 
-### 파일 구성
+<details>
+<summary>파일 구성 보기</summary>
 
 | 파일 | 역할 |
 |---|---|
 | `src/cli.ts` | 실행 파일의 입구 |
-| `src/run.ts` | 옵션 해석, 사용법 검사, 명령 실행. 입출력은 주입받습니다 |
+| `src/run.ts` | 옵션 해석, 명령별 옵션 검사, 명령 실행. 입출력은 주입받습니다 |
 | `src/check.ts` | 규칙 실행과 점수 계산 |
 | `src/rules/` | 규칙 하나당 파일 하나. `index.ts`에 등록합니다 |
 | `src/context.ts` | 파일 읽기. 규칙은 이 클래스로만 파일에 접근합니다 |
@@ -218,13 +235,9 @@ GitHub Actions는 `main` 브랜치에 push하거나 PR을 만들 때 Node.js 22�
 | `src/agents.ts` | AI 도구별 스킬 설치 계획 |
 | `src/jsonc.ts` | 주석이 있는 `tsconfig.json` 파싱 |
 
-설계 원칙은 다음과 같습니다.
+규칙은 결과만 반환하고, 파일 읽기는 `RepoContext`, 출력과 종료 코드는 `run.ts`가 맡습니다. 그래서 테스트는 임시 폴더에 가짜 저장소를 만들고 결과를 바로 비교합니다.
 
-- **규칙은 결과만 반환합니다.** 파일 읽기는 `RepoContext`, 출력과 종료 코드는 `run.ts`가 맡습니다. 그래서 테스트는 임시 폴더에 가짜 저장소를 만들고 결과를 바로 비교합니다.
-- **실패에는 항상 다음 행동을 붙입니다.** `fail(message, fix)`가 `fix`를 필수로 받아, 출력만 본 사람이나 AI가 바로 고칠 수 있게 합니다.
-- **신뢰할 수 없는 JSON은 `unknown`으로 받습니다.** `as` 캐스팅 없이 검증한 값만 씁니다.
-- **런타임 의존성은 0개입니다.** 외부 패키지 없이 Node.js 표준 모듈만으로 구현해, 이 도구를 설치한 프로젝트의 의존성과 버전이 충돌할 여지를 없앴습니다.
-- **규칙 하나가 깨져도 검사는 계속됩니다.** 예외를 던진 규칙은 실패로 보고됩니다.
+</details>
 
 ## 라이선스
 
