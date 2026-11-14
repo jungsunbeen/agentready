@@ -22,6 +22,10 @@ $ agentready
 Score 46/100 · 4 passed, 3 failed, 1 skipped
 ```
 
+검사 대상은 `package.json`과 `tsconfig.json`을 쓰는 JS/TS 리포지토리입니다. Next.js, React, Node.js 프로젝트를 비롯해 프레임워크는 가리지 않습니다. 규칙이 프레임워크 기능이 아니라 저장소의 파일과 설정을 보기 때문입니다.
+도구를 실행하려면 Node.js 22 이상이 필요하고, 검사받는 프로젝트가 요구하는 Node.js 버전은 `node-version` 규칙이 따로 확인합니다.
+해당하지 않는 규칙은 실패가 아니라 `skip`으로 표시되어 점수 계산에서 빠집니다. 예를 들어 `package.json`이 없는 저장소에서는 `package-scripts`와 `agent-commands`가 skip됩니다.
+
 ## 동작 방식
 
 ### 해결하려는 문제
@@ -150,7 +154,29 @@ console.log(formatText(report, { color: false }));
 if (!report.passed) process.exitCode = 1;
 ```
 
-`check(root, { rules })`에 직접 만든 규칙을 넘길 수 있습니다. 만드는 방법은 [규칙 추가하기](docs/adding-a-rule.md)에 있습니다.
+`check(root, options?)`는 저장소 경로를 받아 `Report`를 돌려줍니다. `options.rules`에 규칙 배열을 넘기면 기본 규칙 대신 그것만 실행합니다.
+
+| `Report` 필드 | 내용 |
+|---|---|
+| `root` | 검사한 저장소의 절대 경로 |
+| `score` | 0–100. `error`가 `warning`의 3배 가중치이고, skip된 규칙은 분모에서 빠집니다 |
+| `passed` | `error` 규칙이 하나도 실패하지 않았는지 |
+| `summary` | `pass`, `fail`, `skip` 개수 |
+| `findings` | 규칙별 결과. `ruleId`, `severity`, `status`, `message`, 실패면 `fix`가 함께 옵니다 |
+
+패키지가 함께 내보내는 것도 그대로 쓸 수 있습니다.
+
+| 내보내는 것 | 설명 |
+|---|---|
+| `rules` | 기본으로 실행하는 규칙 8개 |
+| `pass`, `fail`, `skip` | 규칙 결과를 만드는 함수. `fail(message, fix)`는 `fix`가 필수입니다 |
+| `RepoContext` | 규칙이 파일을 읽는 객체. 같은 파일은 여러 규칙이 읽어도 한 번만 읽습니다 |
+| `computeScore(findings)` | 점수만 따로 계산합니다 |
+| `renderAgentsMd` | `agentready init`이 쓰는 `AGENTS.md` 초안을 만듭니다 |
+| `formatText`, `formatJson`, `formatRulesMarkdown` | `Report`를 텍스트·JSON·Markdown으로 출력합니다 |
+| `Finding`, `Report`, `Rule`, `RuleResult`, `Severity`, `Status` | 타입 |
+
+직접 만든 규칙을 넘기는 방법은 [규칙 추가하기](docs/adding-a-rule.md)에 있습니다.
 
 ## 개발과 테스트
 
@@ -164,7 +190,21 @@ npm run docs        # 규칙을 바꿨다면 빌드 후 docs/rules.md 재생성
 npm run check:self  # 빌드 후 이 저장소를 자기 자신으로 검사
 ```
 
-GitHub Actions는 `main` 브랜치에 push하거나 PR을 만들 때 Node.js 22와 24에서 타입 검사·린트·빌드·테스트·자체 검사를 실행합니다.
+### 빌드와 타입 검사
+
+`tsconfig.json`은 `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`를 켜 두고 `src`와 `test`, `vitest.config.ts`를 검사합니다(`noEmit`).
+
+빌드는 `tsconfig.build.json`이 맡습니다. `tsconfig.json`을 상속해 `src`만 `dist/`의 JS와 `.d.ts`로 내보내고, `package.json`의 `exports`가 그 결과를 노출합니다. 테스트 코드는 배포물에 들어가지 않습니다.
+
+### CI에서 확인하는 것
+
+GitHub Actions는 `main` 브랜치에 push하거나 PR을 만들 때 Node.js 22와 24에서 타입 검사·린트·빌드를 먼저 돌리고, 이어서 세 가지를 확인합니다.
+
+1. `npm test` — `vitest`가 `mkdtemp`로 만든 임시 디렉터리에 가짜 저장소를 만들어 실제 파일시스템에서 규칙을 실행합니다.
+2. 문서 일치 — `test/docs.test.ts`가 코드의 규칙 정의와 커밋된 `docs/rules.md`를 비교합니다. 규칙을 바꾸고 문서를 다시 만들지 않으면 실패합니다.
+3. `check:self` — 이 저장소를 자기 자신으로 검사해 100점을 요구합니다.
+
+### 파일 구성
 
 | 파일 | 역할 |
 |---|---|
@@ -183,6 +223,7 @@ GitHub Actions는 `main` 브랜치에 push하거나 PR을 만들 때 Node.js 22�
 - **규칙은 결과만 반환합니다.** 파일 읽기는 `RepoContext`, 출력과 종료 코드는 `run.ts`가 맡습니다. 그래서 테스트는 임시 폴더에 가짜 저장소를 만들고 결과를 바로 비교합니다.
 - **실패에는 항상 다음 행동을 붙입니다.** `fail(message, fix)`가 `fix`를 필수로 받아, 출력만 본 사람이나 AI가 바로 고칠 수 있게 합니다.
 - **신뢰할 수 없는 JSON은 `unknown`으로 받습니다.** `as` 캐스팅 없이 검증한 값만 씁니다.
+- **런타임 의존성은 0개입니다.** 외부 패키지 없이 Node.js 표준 모듈만으로 구현해, 이 도구를 설치한 프로젝트의 의존성과 버전이 충돌할 여지를 없앴습니다.
 - **규칙 하나가 깨져도 검사는 계속됩니다.** 예외를 던진 규칙은 실패로 보고됩니다.
 
 ## 라이선스
