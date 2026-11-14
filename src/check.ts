@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { RepoContext } from './context.js';
-import { fail } from './rules/result.js';
+import { fail, skip } from './rules/result.js';
 import { rules as builtInRules } from './rules/index.js';
 import type { Finding, Report, Rule, Severity } from './types.js';
 import { errorMessage } from './util.js';
@@ -8,6 +8,8 @@ import { errorMessage } from './util.js';
 export interface CheckOptions {
   /** Rules to run. Defaults to all built-in rules. */
   readonly rules?: readonly Rule[];
+  /** Rule IDs to skip. An ignored rule is reported as skipped and stays out of the score. */
+  readonly ignore?: readonly string[];
 }
 
 const WEIGHT: Readonly<Record<Severity, number>> = { error: 3, warning: 1 };
@@ -27,6 +29,7 @@ export function computeScore(findings: readonly Finding[]): number {
 /**
  * Runs rules against the repository at `root`.
  * A rule that throws is reported as a failure instead of aborting the run.
+ * A rule named in `options.ignore` is not run at all.
  *
  * @throws {Error} if `root` is not a directory.
  */
@@ -38,11 +41,14 @@ export async function check(root: string, options: CheckOptions = {}): Promise<R
   );
   if (!isDirectory) throw new Error(`Not a directory: ${ctx.root}`);
 
+  const ignore = new Set(options.ignore ?? []);
   const findings = await Promise.all(
     (options.rules ?? builtInRules).map(async (rule): Promise<Finding> => {
-      const result = await rule
-        .check(ctx)
-        .catch((error: unknown) => fail(`Rule crashed: ${errorMessage(error)}`, 'This is a bug in the rule; please report it.'));
+      const result = ignore.has(rule.id)
+        ? skip('Ignored by configuration')
+        : await rule
+            .check(ctx)
+            .catch((error: unknown) => fail(`Rule crashed: ${errorMessage(error)}`, 'This is a bug in the rule; please report it.'));
       return { ruleId: rule.id, severity: rule.severity, ...result };
     }),
   );

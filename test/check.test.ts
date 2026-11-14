@@ -60,6 +60,27 @@ describe('check', () => {
     const root = await makeRepo({ 'file.txt': '' });
     await expect(check(path.join(root, 'file.txt'))).rejects.toThrow('Not a directory');
   });
+
+  it('skips ignored rules without running them and leaves them out of the score', async () => {
+    // Only the ci-workflow warning fails here, so ignoring it restores a perfect score.
+    const withoutCi = Object.fromEntries(Object.entries(GOOD_REPO).filter(([file]) => !file.startsWith('.github/')));
+    const root = await makeRepo(withoutCi);
+    expect((await check(root)).score).toBeLessThan(100);
+
+    const report = await check(root, { ignore: ['ci-workflow'] });
+    expect(report.findings.find((f) => f.ruleId === 'ci-workflow')).toMatchObject({
+      status: 'skip',
+      message: 'Ignored by configuration',
+    });
+    expect(report).toMatchObject({ score: 100, passed: true });
+    expect(report.summary.skip).toBe(1);
+  });
+
+  it('ignores an unknown rule ID without failing', async () => {
+    const report = await check(await makeRepo(GOOD_REPO), { ignore: ['no-such-rule'] });
+    expect(report).toMatchObject({ score: 100, passed: true });
+    expect(report.summary.skip).toBe(0);
+  });
 });
 
 describe('formatText', () => {

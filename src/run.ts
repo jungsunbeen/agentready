@@ -32,6 +32,7 @@ Options:
   --json             Machine-readable output (check, rules)
   --fail-under <n>   Also exit 1 if the score is below n (check)
   --exit-zero        Always exit 0, for hooks and skills that only read the result (check)
+  --ignore <ruleId>  Skip a rule; repeat to skip more than one (check)
   --markdown         Rules as Markdown (rules)
   --agent <name>     Install the ${SKILL_NAME} skill for ${AGENTS.join(', ')} (init, repeatable)
   --force            Overwrite an existing AGENTS.md (init)
@@ -39,6 +40,7 @@ Options:
   -h, --help         Show this help
   -v, --version      Show the version
 
+Each option belongs to a command: using it with another one is a usage error.
 Exit codes: 0 ok, 1 check failed, 2 usage error
 `;
 
@@ -46,6 +48,7 @@ const OPTIONS = {
   json: { type: 'boolean' },
   'fail-under': { type: 'string' },
   'exit-zero': { type: 'boolean' },
+  ignore: { type: 'string', multiple: true },
   markdown: { type: 'boolean' },
   agent: { type: 'string', multiple: true },
   force: { type: 'boolean' },
@@ -61,12 +64,42 @@ function isCommand(value: string): value is Command {
   return (COMMANDS as readonly string[]).includes(value);
 }
 
+/** Options each command accepts, besides the global `-h/--help` and `-v/--version`. */
+const COMMAND_OPTIONS = {
+  check: ['json', 'fail-under', 'exit-zero', 'ignore'],
+  rules: ['json', 'markdown'],
+  init: ['agent', 'force', 'dry-run'],
+} as const satisfies Readonly<Record<Command, readonly (keyof typeof OPTIONS)[]>>;
+
+const GLOBAL_OPTIONS: readonly string[] = ['help', 'version'];
+
+const RULE_IDS: readonly string[] = rules.map((rule) => rule.id);
+
 function parse(argv: readonly string[]) {
   return parseArgs({ args: [...argv], options: OPTIONS, allowPositionals: true, strict: true });
 }
 type Values = ReturnType<typeof parse>['values'];
 
 class UsageError extends Error {}
+
+/** Rejects an option that this command does not take, instead of silently ignoring it. */
+function rejectForeignOptions(command: Command, values: Values): void {
+  const allowed: readonly string[] = [...GLOBAL_OPTIONS, ...COMMAND_OPTIONS[command]];
+  const foreign = Object.keys(values).filter((name) => !allowed.includes(name));
+  if (foreign.length === 0) return;
+  const given = foreign.map((name) => `--${name}`).join(', ');
+  const usable = COMMAND_OPTIONS[command].map((name) => `--${name}`).join(', ');
+  throw new UsageError(`${given} cannot be used with \`${command}\`. \`${command}\` takes ${usable}.`);
+}
+
+function parseIgnore(raw: readonly string[] | undefined): readonly string[] {
+  const ignore = raw ?? [];
+  const unknown = ignore.filter((id) => !RULE_IDS.includes(id));
+  if (unknown.length > 0) {
+    throw new UsageError(`Unknown rule in --ignore: ${unknown.join(', ')}. Run \`agentready rules\` to list rule IDs.`);
+  }
+  return ignore;
+}
 
 function readVersion(): string {
   const pkg: unknown = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -97,6 +130,7 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
     const [first, ...rest] = positionals;
     const command: Command = first !== undefined && isCommand(first) ? first : 'check';
     const args = first !== undefined && isCommand(first) ? rest : positionals;
+    rejectForeignOptions(command, values);
     if (args.length > (command === 'rules' ? 0 : 1)) throw new UsageError(`Too many arguments: ${args.join(' ')}`);
     const dir = path.resolve(io.cwd, args[0] ?? '.');
 
@@ -119,7 +153,8 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
 
 async function runCheck(dir: string, values: Values, io: Io): Promise<number> {
   const failUnder = parseFailUnder(values['fail-under']);
-  const report = await check(dir);
+  const ignore = parseIgnore(values.ignore);
+  const report = await check(dir, { ignore });
   io.stdout(values.json === true ? formatJson(report) : formatText(report, { color: io.color }));
   if (values['exit-zero'] === true) return EXIT.ok;
 
